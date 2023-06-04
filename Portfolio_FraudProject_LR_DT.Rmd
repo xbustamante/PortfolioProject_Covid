@@ -1,0 +1,245 @@
+---
+title: "Portfolio_FraudProject_LR_DT"
+author: "Ximena Bustamante"
+date: "2023-05-31"
+output: html_document
+---
+
+# **Logistic Regression**
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+*Dependent Variable: Fraud Y/N*
+*Independent Variable:Multiple+Duplicated+No_Orders+No_Payments+paymentMethodType+ paymentMethodProvider+transactionAmount*
+
+## Import Dataset
+```{r}
+library(tidyverse)
+df1_merged <- read.csv('Merged_DF_LR.csv')
+```
+
+## Clean Data and Familiarize with Data Structure 
+
+### Per Previous EDA, No Missing Values or NAs were Located 
+```{r}
+df1_merged$Fraud <- as.factor(df1_merged$Fraud)
+df1_merged$Multiple <- as.factor(df1_merged$Multiple)
+df1_merged$Duplicated <- as.factor(df1_merged$Duplicated)
+df1_merged$paymentMethodRegistrationFailure <- as.factor(df1_merged$paymentMethodRegistrationFailure)
+df1_merged$transactionFailed <- as.factor(df1_merged$transactionFailed)
+str(df1_merged)
+summary(df1_merged)
+```
+## Create Function for Confusion Matrix to be Used Later
+```{r}
+# Make reusable Confusion Matrix function
+my_confusion_matrix <- function(cf_table) {
+  true_positive <- cf_table[4]
+  true_negative <- cf_table[1]
+  false_positive <- cf_table[2]
+  false_negative <- cf_table[3]
+  accuracy <- (true_positive + true_negative) / (true_positive + true_negative + false_positive + false_negative)
+  sensitivity_recall <- true_positive / (true_positive + false_negative) 
+  specificity_selectivity <- true_negative / (true_negative + false_positive)
+  precision <- true_positive / (true_positive + false_positive) 
+  neg_pred_value <- true_negative/(true_negative + false_negative)
+  print(cf_table)
+  my_list <- list(sprintf("%1.0f = True Positive (TP), Hit", true_positive),
+                  sprintf("%1.0f = True Negative (TN), Rejection", true_negative),
+                  sprintf("%1.0f = False Positive (FP), Type 1 Error", false_positive),
+                  sprintf("%1.0f = False Negative (FN), Type 2 Error", false_negative),
+                  sprintf("%1.4f = Accuracy (TP+TN/(TP+TN+FP+FN))", accuracy), 
+                  sprintf("%1.4f = Sensitivity, Recall, Hit Rate, True Positive Rate (How many positives did the model get right? TP/(TP+FN))", sensitivity_recall),
+                  sprintf("%1.4f = Specificity, Selectivity, True Negative Rate (How many negatives did the model get right? TN/(TN+FP))", specificity_selectivity),                   
+                  sprintf("%1.4f = Precision, Positive Predictive Value (How good are the model's positive predictions? TP/(TP+FP))", precision),
+                  sprintf("%1.4f = Negative Predictive Value (How good are the model's negative predictions? TN/(TN+FN)", neg_pred_value)
+  )
+  return(my_list)
+}
+```
+
+## Baseline Occurence of Fraud to check for Balance 
+```{r}
+fraud_table <- table(df1_merged$Fraud)
+print(fraud_table)
+print(fraud_table[2]/(fraud_table[1]+fraud_table[2]))
+```
+## Create Pie Chart to Visualize Balanced Dataset
+```{r}
+labels <- c("legit", "fraud")
+labels <- paste(labels, round(100*prop.table(table(df1_merged$Fraud)),2))
+labels <- paste0 (labels,"%")
+
+pie(table(df1_merged$Fraud), labels, col = c("orange", "red"),
+   main = "Pie Chart of Credit Card Transacations" )
+```
+
+
+## Create Scatterplot to Visualize Balanced Dataset
+```{r}
+ggplot(data = df1_merged, aes(x=Fraud, y=Fraud, col=Fraud))+
+  geom_point(position = position_jitter(width = 0.2))+
+  theme_bw()+
+  scale_color_manual(values = c('dodgerblue2', 'red'))
+```
+
+
+## Check Contrast 
+```{r}
+contrasts(df1_merged$Fraud)
+```
+## Split Into Training and Testing Sets 
+```{r}
+library(caret)
+set.seed(77)
+partition <- caret::createDataPartition(y=df1_merged$Fraud, p=.75, list=FALSE)
+data_train <- df1_merged[partition,]
+data_test <- df1_merged[-partition,]
+print(nrow(data_train)/(nrow(data_test)+nrow(data_train)))
+```
+## Train LR Model 
+```{r}
+model_train <- glm(Fraud ~ Multiple  , family=binomial, data=data_train)
+summary(model_train)
+```
+
+## Predict Probabilities 
+```{r}
+predict_train <- predict(model_train, newdata=data_train, type='response')
+print(summary(predict_train))
+data_train$prediction <- predict_train
+head(data_train, n=20)
+```
+## Accuracy of Model- Confusion Matrix
+```{r}
+table1 <- table(predict_train>0.5, data_train$Fraud) #prediction on left and truth on top
+my_confusion_matrix(table1)
+```
+## Predict and Evaluate the Model on the Test Data
+```{r}
+predict_test <- predict(model_train, newdata=data_test, type='response')
+print(summary(predict_test))
+data_test$prediction <- predict_test
+head(data_test, n=20)
+table2 <- table(predict_test>.5, data_test$Fraud) #prediction on left and truth on top
+my_confusion_matrix(table2)
+```
+
+## **Multiple Variables**
+
+## Train a Multivariate Model-Test
+```{r}
+model_train_test <- glm(Fraud ~ 
+Multiple+Duplicated+paymentMethodRegistrationFailure+paymentMethodType+paymentMethodProvider+transactionAmount+transactionFailed+orderState+No_Transactions+No_Orders+No_Payments, family=binomial, data=data_train)
+summary(model_train_test)
+```
+## Train a Multivariate Model-Only Sig Categories
+```{r}
+model_train <- glm(Fraud ~ Multiple+Duplicated+No_Orders+No_Payments+paymentMethodType+ paymentMethodProvider+transactionAmount, family=binomial, data=data_train)
+summary(model_train)
+```
+## Predict and Evaluate with Test Data
+```{r}
+predict_test <- predict(model_train, newdata=data_test, type='response')
+summary(predict_test)
+data_test$prediction <- predict_test
+head(data_test, n=20)
+table2 <- table(predict_test>.5, data_test$Fraud)
+my_confusion_matrix(table2)
+```
+
+
+# **Decision Trees**
+
+## Load Packages
+```{r}
+# load needed packages
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+```
+
+## Create Tree Model1
+```{r}
+Model1 <- rpart(Fraud~ Multiple+Duplicated+No_Orders+No_Payments+paymentMethodType+ paymentMethodProvider+transactionAmount, data_train)
+rpart.plot(Model1, extra=0, type=5, tweak=1.2)
+```
+
+## Predict Fraud Classes 
+```{r}
+predicted_val <- predict(Model1, data_test, type='class')
+```
+
+## Check Efficiency of Model1 with Confusion Matrix
+```{r}
+library(caret)
+confusionMatrix(predicted_val, data_test$Fraud)
+```
+## Create Decision Tree-Model1 Visual 
+```{r}
+Model1 <- rpart(Fraud~ Multiple+Duplicated+No_Orders+No_Payments+paymentMethodType+ paymentMethodProvider+transactionAmount, df1_merged)
+rpart.plot(Model1, extra=0, type=5, tweak=1.2)
+```
+
+## Predict Fraud Classes for Model1 
+```{r}
+predicted_val <- predict(Model1, df1_merged, type='class')
+```
+
+#Confusion Matrix for Model1
+```{r}
+library(caret)
+confusionMatrix(predicted_val, df1_merged$Fraud)
+```
+
+
+# Build Decision Tree Model2
+
+## Explore the target feature
+```{r}
+freq <- table(df1_merged$Fraud)
+freq[2]/(freq[1]+freq[2])
+contrasts(df1_merged$Fraud)
+```
+
+## Run the Model
+```{r}
+#install.packages('tree')
+library(tree)
+Model2 <- tree(Fraud~ Multiple+Duplicated+No_Orders+No_Payments+paymentMethodType+ paymentMethodProvider+transactionAmount, data_train)
+```
+
+## Predict the Model on the Holdout Testing Data
+```{r}
+predict_tree <- predict(Model2, data_test, type='class') 
+```
+
+## Confusion Matrix-Checking Accuracy for Model2
+```{r}
+table1 <- table(predict_tree, data_test$Fraud)
+my_confusion_matrix(table1)
+```
+
+
+## Summarize the results from Model2
+```{r}
+summary(Model2)
+```
+
+## Model2 Tree in Text Form
+```{r}
+Model2
+```
+
+## Plot Model2 Tree
+```{r}
+plot(Model2)
+text(Model2, all=TRUE, cex=.75, font=2, digits=2, pretty=0)
+```
+
+
+
+
+
+

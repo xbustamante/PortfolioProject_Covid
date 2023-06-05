@@ -9,7 +9,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
+# Inspired by University of Illinois-Urbana Champaign Professor Hudson(Machine Learning Algorithms with R in Business Analytics
 *Dependent Variable: Fraud Y/N*
 *Independent Variable:Multiple+Duplicated+No_Orders+No_Payments+paymentMethodType+ paymentMethodProvider+transactionAmount*
 
